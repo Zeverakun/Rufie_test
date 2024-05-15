@@ -1,5 +1,5 @@
 from direct.showbase.ShowBase import ShowBase
-# from mapmanager import Mapmanager
+
 
 class Hero():
     def __init__(self, pos, land):
@@ -9,6 +9,91 @@ class Hero():
         self.hero.setScale(0.3)
         self.hero.setPos(pos)
         self.hero.reparentTo(render)
+        self.cameraBind()
+        self.accept_events()
+
+    
+
+    def cameraBind(self):
+        base.disableMouse()
+        base.camera.setH(180)
+        base.camera.reparentTo(self.hero)
+        base.camera.setPos(0, 0, 1.5)
+
+
+    def accept_events(self):
+        base.accept('m', self.turn_right)
+        base.accept('m'+'-repeat', self.turn_right)
+        base.accept('n', self.turn_left)
+        base.accept('n'+'-repeat', self.turn_left)
+        base.accept('arrow_down', self.back)
+        base.accept('arrow_down'+'-repeat', self.back )
+    
+    def turn_right(self):
+        self.hero.setH((self.hero.getH() - 5) % 360)
+
+
+    def turn_left(self):
+        self.hero.setH((self.hero.getH() + 5) % 360)
+
+
+
+
+    def check_dir(self,angle):
+        if angle >= 0 and angle <= 20:
+            return (0, -1)
+        elif angle <= 65:
+            return (1, -1)
+        elif angle <= 110:
+            return (1, 0)
+        elif angle <= 155:
+            return (1, 1)
+        elif angle <= 200:
+            return (0, 1)
+        elif angle <= 245:
+            return (-1, 1)
+        elif angle <= 290:
+            return (-1, 0)
+        elif angle <= 335:
+            return (-1, -1)
+        else:        
+            return (0, -1)
+
+    def look_at(self, angle):
+        from_x = round(self.hero.getX())
+        from_y = round(self.hero.getY())
+        from_z = round(self.hero.getZ())
+
+
+        dx, dy = self.hero.check_dir(self, angle)
+
+        return from_x + dx, from_y + dy
+
+
+    def just_move(self, angle):
+        pos = self.look_at(angle)
+        self.hero.setPos(pos)
+
+
+    def try_move(self, angle):
+        pos = self.look_at(angle)
+        if self.land.isEmpty(pos):
+            pos = self.land.findHighestEmpty(pos)
+            self.hero.setPos(pos)
+        else:
+            pos = pos[0], pos[1], pos[2] + 1
+            if self.land.isEmpty(pos):
+                self.hero.setPos(pos)
+
+
+
+
+
+
+    def back(self):
+        angle =((self.hero.getH()+0) % 360)
+        self.try_move(angle)
+
 
 class Game(ShowBase):
     def __init__(self):
@@ -38,6 +123,25 @@ class Mapmanager():
         self.land = render.attachNewNode("Land") 
 
 
+    def isEmpty(self, pos):
+        blocks = self.findBlocks(pos)
+        if blocks:
+            return False
+        else:
+            return True
+
+    def findBlocks(self, pos):
+        return self.land.findAllMatches('=at=' + str(pos))
+
+
+    def findHighestEmpty(self, pos):
+        x, y, z = pos
+        z = 1
+        while not self.isEmpty((x, y, z)):
+            z+=1
+        return (x, y, z)
+
+
     def getColor(self, z):
         if z < len(self.colors):
             return self.colors[z]
@@ -45,14 +149,16 @@ class Mapmanager():
             return self.colors[len(self.colors) - 1]
 
 
-    def addBlock(self, position):
+    def addBlock(self, pos):
         # создаём строительные блоки
         self.block = loader.loadModel(self.model)
         self.block.setTexture(loader.loadTexture(self.texture))
-        self.block.setPos(position)
-        self.color = self.getColor(int(position[2]))
+        self.block.setPos(pos)
+        self.color = self.getColor(int(pos[2]))
         self.block.setColor(self.color)
         self.block.reparentTo(self.land)
+        self.block.setTag('at', str(pos))
+
 
 
     def clear(self):
